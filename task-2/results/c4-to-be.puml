@@ -1,0 +1,24 @@
+@startuml
+!include <C4/C4_Container>
+
+title Выгрузка прайс-листов (To Be)
+
+AddElementTag("new", $bgColor="#2e7d32", $legendText="новый компонент")
+
+Person(client, "B2B-клиент", "Получает свой прайс-лист каждое утро")
+SystemDb_Ext(storage, "Объектное хранилище", "Бакет price-lists, файлы <дата>/<client_id>.csv")
+
+System_Boundary(k8s, "Онлайн-магазин (k8s)") {
+  ContainerDb(db, "БД прайс-листов", "PostgreSQL", "products, categories, clients, client_prices")
+  Container(job, "Выгрузка прайс-листов", "k8s CronJob, Node.js", "Каждый день в 06:00 собирает CSV по каждому клиенту", $tags="new")
+}
+
+System_Ext(monitoring, "Логи и мониторинг", "Сбор логов и метрик кластера, алерты")
+
+Rel_D(job, db, "Читает цены клиентов", "SQL, read-only")
+Rel_L(job, storage, "Кладет CSV", "S3 API")
+Rel_R(client, storage, "Скачивает свой файл", "HTTPS")
+Rel_L(monitoring, job, "Собирает логи и статус запуска")
+
+SHOW_LEGEND()
+@enduml
