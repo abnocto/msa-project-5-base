@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: analytics
+data:
+  init.sql: |
+    CREATE TABLE shipments (
+      id         SERIAL PRIMARY KEY,
+      client_id  INT NOT NULL,
+      driver_id  INT NOT NULL,
+      vehicle_id INT NOT NULL,
+      status     TEXT NOT NULL,
+      weight_kg  INT NOT NULL,
+      created_at TIMESTAMP NOT NULL
+    );
+
+    INSERT INTO shipments (client_id, driver_id, vehicle_id, status, weight_kg, created_at)
+    SELECT n % 50, n % 20, n % 10, (ARRAY['created', 'in_transit', 'delivered'])[n % 3 + 1], 100 + n * 7 % 900,
+           now() - n * INTERVAL '10 minutes'
+    FROM generate_series(1, 300) AS n;
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: analytics
+spec:
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16.4-alpine
+          env:
+            - name: POSTGRES_USER
+              value: shipments
+            - name: POSTGRES_PASSWORD
+              value: shipments
+          volumeMounts:
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: init
+          configMap:
+            name: postgres-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: analytics
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
