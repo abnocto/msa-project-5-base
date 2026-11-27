@@ -1,0 +1,33 @@
+services:
+  airflow:
+    image: docker.io/apache/airflow:2.10.5-python3.12
+    command: standalone
+    ports:
+      - "8088:8080"
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__SMTP__SMTP_HOST: mailpit
+      AIRFLOW__SMTP__SMTP_PORT: "1025"
+      AIRFLOW__SMTP__SMTP_STARTTLS: "false"
+      AIRFLOW__SMTP__SMTP_MAIL_FROM: airflow@marketing.local
+      AIRFLOW_CONN_ORDERS_DB: postgresql://orders:orders@orders-db/orders
+      _AIRFLOW_DB_MIGRATE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data
+
+  orders-db:
+    image: docker.io/library/postgres:16.4-alpine
+    environment:
+      POSTGRES_USER: orders
+      POSTGRES_PASSWORD: orders
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  mailpit:
+    image: docker.io/axllent/mailpit:v1.21.8
+    ports:
+      - "8025:8025"

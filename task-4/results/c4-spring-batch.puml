@@ -1,0 +1,34 @@
+@startuml
+!include <C4/C4_Container>
+
+title TradeWare: обработка отчетов об остатках (To Be)
+
+AddElementTag("new", $bgColor="#2e7d32", $legendText="новый компонент")
+
+Person(user, "Сотрудник склада", "Загружает отчет об остатках за смену")
+
+System_Boundary(gcp, "TradeWare (GCP)") {
+  Container(ui, "ERP UI", "Angular", "Загрузка отчета, история загрузок")
+  Container(monolith, "ERP-монолит", "Java 11, WildFly", "Проверка формата, прием файла, статус загрузки")
+  ContainerQueue(pubsub, "Pub/Sub", "Google Pub/Sub", "report-uploaded, report-processed", $tags="new")
+  Container(batch, "Report Processing Service", "Spring Boot, Spring Batch", "Job на файл: чтение CSV, проверка бизнес-правил, обогащение, запись пачками", $tags="new")
+  ContainerDb(gcs, "Файловое хранилище", "GCS", "Загруженные отчеты, файлы с отклоненными строками")
+  ContainerDb(refdb, "БД справочных данных", "PostgreSQL", "Характеристики товаров, промоакции")
+  ContainerDb(nomdb, "БД номенклатуры", "PostgreSQL", "Остатки на складах")
+  ContainerDb(jobdb, "JobRepository", "PostgreSQL", "Запуски job и место остановки", $tags="new")
+}
+
+Rel_R(user, ui, "Загружает CSV")
+Rel_R(ui, monolith, "Файл, статус загрузки", "REST, WebSocket")
+Rel_D(monolith, gcs, "Сохраняет CSV")
+Rel_R(monolith, pubsub, "Публикует report-uploaded, получает report-processed")
+Rel_U(batch, pubsub, "Получает report-uploaded, публикует report-processed")
+Rel_L(batch, gcs, "Читает CSV, пишет отклоненные строки")
+Rel_D(batch, refdb, "Читает справочники")
+Rel_D(batch, nomdb, "Пишет остатки пачками", "batch update")
+Lay_R(nomdb, refdb)
+Rel_R(batch, jobdb, "Состояние job")
+Rel(monolith, nomdb, "Показывает остатки")
+
+SHOW_LEGEND()
+@enduml

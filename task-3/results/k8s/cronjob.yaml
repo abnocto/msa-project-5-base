@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: exports
+  namespace: analytics
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: shipments-export
+  namespace: analytics
+spec:
+  schedule: "0 20 * * *"
+  timeZone: Europe/Moscow
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: export
+              image: shipments-export:1.0
+              imagePullPolicy: Never
+              env:
+                - name: PGHOST
+                  value: postgres
+                - name: PGUSER
+                  value: shipments
+                - name: PGPASSWORD
+                  value: shipments
+              volumeMounts:
+                - name: exports
+                  mountPath: /exports
+          volumes:
+            - name: exports
+              persistentVolumeClaim:
+                claimName: exports
