@@ -1,0 +1,58 @@
+@startuml
+!include <C4/C4_Container>
+
+title TradeWare: мониторинг, оповещения и логи (To Be)
+
+AddElementTag("new", $bgColor="#2e7d32", $legendText="мониторинг и логи")
+
+Person(user, "Сотрудник склада", "Загружает отчет об остатках")
+
+System_Boundary(app, "TradeWare (GCP)") {
+  Container(monolith, "ERP-монолит", "Java 11, WildFly", "Прием отчетов")
+  ContainerQueue(pubsub, "Pub/Sub", "Google Pub/Sub", "report-uploaded, report-processed")
+  Container(batch, "Report Processing Service", "Spring Boot, Spring Batch", "Обработка отчетов")
+  ContainerDb(db, "PostgreSQL", "PostgreSQL", "Номенклатура, справочники, JobRepository")
+}
+
+System_Boundary(metrics, "Метрики и алерты") {
+  Container(prom, "Prometheus", "Prometheus", "Метрики и правила алертов", $tags="new")
+  Container(pgexp, "postgres_exporter", "Prometheus exporter", "Метрики PostgreSQL", $tags="new")
+  Container(am, "Alertmanager", "Alertmanager", "Отправка алертов", $tags="new")
+  Container(grafana, "Grafana", "Grafana", "Дашборды", $tags="new")
+}
+
+System_Boundary(logs, "Логи") {
+  Container(filebeat, "Filebeat", "Beats", "Сбор логов на VM и в кластере", $tags="new")
+  Container(logstash, "Logstash", "Logstash", "Разбирает логи", $tags="new")
+  ContainerDb(es, "Elasticsearch", "Elasticsearch", "Хранение логов", $tags="new")
+  Container(kibana, "Kibana", "Kibana", "Поиск по логам", $tags="new")
+}
+
+Person(oncall, "Дежурный инженер", "Получает алерты, смотрит дашборды и логи")
+
+Rel_D(user, monolith, "Загружает CSV")
+Rel_R(monolith, pubsub, "Публикует report-uploaded, получает report-processed")
+Rel_L(batch, pubsub, "Получает report-uploaded, публикует report-processed")
+Rel_D(batch, db, "Пишет пачками")
+
+Rel_U(prom, monolith, "/metrics", "pull")
+Rel_U(prom, batch, "/actuator/prometheus", "pull")
+Rel_R(prom, pgexp, "/metrics", "pull")
+Rel_U(pgexp, db, "Статистика")
+Rel_D(prom, am, "Алерты")
+Rel_L(grafana, prom, "PromQL")
+Lay_R(grafana, am)
+
+Rel_U(filebeat, monolith, "Лог-файлы")
+Rel_U(filebeat, batch, "stdout")
+Rel_R(filebeat, logstash, "Beats")
+Rel_R(logstash, es, "Индексирует")
+Rel_L(kibana, es, "Запросы")
+Lay_D(metrics, logs)
+
+Rel_U(am, oncall, "Slack, почта")
+Rel_U(oncall, grafana, "Дашборды")
+Rel_U(oncall, kibana, "Поиск по логам")
+
+SHOW_LEGEND()
+@enduml
